@@ -32,14 +32,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({ selectedCount, isProcessing, 
           <X className="h-4 w-4 mr-1.5" />
           Reject
         </button>
-        <button
-          onClick={() => onAction('review')}
-          disabled={disabled || isProcessing}
-          className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Eye className="h-4 w-4 mr-1.5" />
-          Review
-        </button>
+        
       </div>
     </div>
   );

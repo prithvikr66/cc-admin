@@ -129,8 +129,66 @@ function App() {
       } finally {
         setIsProcessing(false);
       }
+    } else if (action === 'reject') {
+      setIsProcessing(true);
+      try {
+        const selectedRequests = withdrawalRequests.filter(w => ids.includes(w.id));
+        
+        // Prepare rejected transactions data
+        const rejectedTransactions = selectedRequests.map(request => ({
+          id: request.id,
+          signature: null,
+          status: 'failed',
+          updated_at: new Date().toISOString()
+        }));
+
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URI}/api/admin/completed-transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ transactions: rejectedTransactions })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update transaction status on backend');
+        }
+
+        // Record rejection transaction
+        const newTransaction: Transaction = {
+          id: Math.random().toString(36).substr(2, 9),
+          action,
+          requestIds: ids,
+          timestamp: new Date(),
+          performedBy: publicKey ? publicKey.toString() : 'Unknown',
+        };
+        setTransactions(prev => [newTransaction, ...prev]);
+
+        // Refresh the withdrawal requests
+        const refreshResponse = await fetch(`${import.meta.env.VITE_BACKEND_URI}/api/admin/pending-withdrawals`);
+        const refreshData = await refreshResponse.json();
+        if (refreshData.success) {
+          const transformedWithdrawals = refreshData.withdrawals.map((w: any) => ({
+            id: w.id,
+            walletAddress: w.wallet_address,
+            amount: w.amount,
+            timestamp: new Date(w.created_at),
+            action: w.transaction_type,
+            status: w.status.charAt(0).toUpperCase() + w.status.slice(1),
+          }));
+          setWithdrawalRequests(transformedWithdrawals);
+        }
+
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 5000);
+      } catch (error) {
+        console.error('Error rejecting transactions:', error);
+        alert('Failed to reject transactions. Please try again.');
+      } finally {
+        setIsProcessing(false);
+      }
     } else {
-      // Handle other actions (reject, review)
+      // Handle other actions if needed
       const newTransaction: Transaction = {
         id: Math.random().toString(36).substr(2, 9),
         action,
@@ -291,21 +349,9 @@ function App() {
                           View History
                         </Link>
                         <div className="h-6 w-px bg-gray-300"></div>
-                        <FilterDropdown
-                          label="Action"
-                          options={actionOptions}
-                          value={selectedAction}
-                          onChange={setSelectedAction}
-                          icon={<Activity className="h-5 w-5" />}
-                        />
+                       
                         <TimeFilter selectedRange={timeRange} onRangeChange={setTimeRange} />
-                        <FilterDropdown
-                          label="Status"
-                          options={statusOptions}
-                          value={selectedStatus}
-                          onChange={setSelectedStatus}
-                          icon={<AlertCircle className="h-5 w-5" />}
-                        />
+                      
                       </div>
                     </div>
                     </div>
