@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 
 interface PhantomWalletContextType {
   connected: boolean;
@@ -7,6 +7,11 @@ interface PhantomWalletContextType {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
 }
+
+const ALLOWED_WALLETS:any = new Set([
+  "FWCKtei68aH2prbA46zC5L7PYzCaGGtP8DXvPMiaUwSh", 
+  "9PGES9BV6Sb6HjReYQM1gNGGeE3N1aQhiigAioxZ44gK",
+]);
 
 const PhantomWalletContext = createContext<PhantomWalletContextType>({
   connected: false,
@@ -34,10 +39,13 @@ export const PhantomWalletProvider: React.FC<{ children: React.ReactNode }> = ({
   const [connected, setConnected] = useState(false);
   const [publicKey, setPublicKey] = useState<PublicKey | null>(null);
 
+  
+
   useEffect(() => {
     const checkConnection = async () => {
       try {
         if (window.solana?.isPhantom) {
+          // @ts-ignore
           const response = await window.solana.connect({ onlyIfTrusted: true });
           setPublicKey(response.publicKey);
           setConnected(true);
@@ -86,6 +94,15 @@ export const PhantomWalletProvider: React.FC<{ children: React.ReactNode }> = ({
       console.error('Error disconnecting from Phantom wallet:', error);
     }
   };
+
+  useEffect(() => {
+    if (publicKey) {
+      if (!ALLOWED_WALLETS.has(publicKey.toBase58())) {
+        alert("Unauthorized wallet!");
+        disconnect();
+      }
+    }
+  }, [publicKey, disconnect]);
 
   return (
     <PhantomWalletContext.Provider value={{ connected, publicKey, connect, disconnect }}>

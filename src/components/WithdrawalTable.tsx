@@ -2,9 +2,8 @@ import React from 'react';
 import { WithdrawalRequest, BulkAction } from '../types/withdrawal';
 import StatusBadge from './StatusBadge';
 import ActionBadge from './ActionBadge';
-import Pagination from './Pagination';
 import BulkActions from './BulkActions';
-
+import AdminMetrics from './AdminMetrics';
 interface WithdrawalTableProps {
   requests: WithdrawalRequest[];
   isProcessing: boolean;
@@ -15,16 +14,25 @@ interface WithdrawalTableProps {
   onBulkAction?: (action: BulkAction, ids: string[]) => void;
 }
 
+interface Metrics {
+  totalBets: number;
+  totalWagered: number;
+  totalLost: number;
+  totalWon: number;
+  houseBalance: number;
+  totalWithdrawn: number;
+  pendingWithdrawals: number;
+}
+
 const WithdrawalTable: React.FC<WithdrawalTableProps> = ({
   requests,
   isProcessing,
   itemsPerPage,
   currentPage,
-  onPageChange,
-  onItemsPerPageChange,
   onBulkAction,
 }) => {
   const [selectedRows, setSelectedRows] = React.useState<Set<string>>(new Set());
+  const [metrics, setMetrics] = React.useState<Metrics | null>(null);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedRequests = requests.slice(startIndex, startIndex + itemsPerPage);
 
@@ -56,8 +64,44 @@ const WithdrawalTable: React.FC<WithdrawalTableProps> = ({
     setSelectedRows(new Set());
   }, [currentPage, itemsPerPage]);
 
+  React.useEffect(() => {
+    fetchMetrics();
+  }, []);
+
+  const fetchMetrics = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URI}/api/admin/dashboard-metrics`);
+      const data = await response.json();
+      console.log(data);
+      if (data.success) {
+        setMetrics(data.metrics);
+      }
+    } catch (error) {
+      console.error('Error fetching metrics:', error);
+    }
+  };
+
+  const handleUpdateHouseBalance = async (newBalance: number) => {
+    // Implement the API call to update house balance
+    // After successful update, refresh metrics
+    try {
+      // Add your API call here
+      await fetchMetrics();
+    } catch (error) {
+      console.error('Error updating house balance:', error);
+    }
+  };
+
   return (
-    <div>
+    <div className="flex flex-col">
+      {metrics && (
+        <AdminMetrics 
+          metrics={metrics} 
+          onUpdateHouseBalance={handleUpdateHouseBalance} 
+        />
+      )}
+
+      <div>
       <div className="px-6 py-4 border-b border-gray-200">
         <BulkActions
           selectedCount={selectedRows.size}
@@ -110,7 +154,7 @@ const WithdrawalTable: React.FC<WithdrawalTableProps> = ({
                 {request.walletAddress}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {request.amount.toFixed(8)} SOL
+                {request.amount.toFixed(3)} SOL
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {request.timestamp.toLocaleString()}
@@ -126,13 +170,14 @@ const WithdrawalTable: React.FC<WithdrawalTableProps> = ({
         </tbody>
       </table>
       </div>
-      <Pagination
+      {/* <Pagination
         currentPage={currentPage}
         itemsPerPage={itemsPerPage}
         totalItems={requests.length}
         onPageChange={onPageChange}
         onItemsPerPageChange={onItemsPerPageChange}
-      />
+      /> */}
+    </div>
     </div>
   );
 };

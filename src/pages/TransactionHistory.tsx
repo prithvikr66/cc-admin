@@ -7,52 +7,72 @@ import { WithdrawalRequest } from '../types/withdrawal';
 
 
 interface TransactionHistoryProps {
-  transactions: Transaction[];
-  withdrawals: WithdrawalRequest[];
+  
 }
 
-const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, withdrawals }) => {
+const TransactionHistory: React.FC<TransactionHistoryProps> = () => {
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [completedWithdrawals, setCompletedWithdrawals] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const getActionIcon = (action: Transaction['action']) => {
-    switch (action) {
-      case 'approve':
+  React.useEffect(() => {
+    const fetchCompletedWithdrawals = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URI}/api/admin/completed-withdrawals`);
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch completed withdrawals');
+        }
+
+        setCompletedWithdrawals(data.withdrawals);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching completed withdrawals:', err);
+        setError('Failed to load transaction history');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCompletedWithdrawals();
+  }, []);
+
+  const getStatusIcon = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'successful':
         return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case 'reject':
+      case 'failed':
         return <XCircle className="h-5 w-5 text-red-500" />;
-      case 'review':
+      default:
         return <Eye className="h-5 w-5 text-blue-500" />;
     }
   };
 
-  const getActionText = (action: Transaction['action']) => {
-    switch (action) {
-      case 'approve':
-        return 'Approved';
-      case 'reject':
-        return 'Rejected';
-      case 'review':
-        return 'Reviewed';
-    }
-  };
-
   // Filter transactions based on wallet address
-  const filteredTransactions = transactions.filter(transaction => {
+  const filteredWithdrawals = completedWithdrawals.filter(withdrawal => {
     if (!searchQuery) return true;
-    
-    // Get all wallet addresses involved in this transaction
-    const involvedWallets = withdrawals
-      .filter(w => transaction.requestIds.includes(w.id))
-      .map(w => w.walletAddress.toLowerCase());
-    
-    return involvedWallets.some(wallet => 
-      wallet.includes(searchQuery.toLowerCase())
-    );
+    return withdrawal.wallet_address.toLowerCase().includes(searchQuery.toLowerCase());
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {error && (
+          <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
         <div className="px-4 py-6 sm:px-0">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
@@ -85,84 +105,65 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, w
 
           <div className="bg-white shadow overflow-hidden sm:rounded-lg">
             <ul role="list" className="divide-y divide-gray-200">
-              {filteredTransactions.length === 0 ? (
+              {filteredWithdrawals.length === 0 ? (
                 <li className="p-8 text-center text-gray-500">
-                  {transactions.length === 0 
+                  {completedWithdrawals.length === 0 
                     ? "No transactions recorded yet"
                     : "No transactions found matching the search criteria"}
                 </li>
               ) : (
-                filteredTransactions.map((transaction) => (
+                filteredWithdrawals.map((withdrawal) => (
                   <li
-                    key={transaction.id}
-                    className="p-4 hover:bg-gray-50 transition-colors duration-150 ease-in-out cursor-pointer"
-                    onClick={() => {}}
+                    key={withdrawal.id}
+                    className="p-4 hover:bg-gray-50 transition-colors duration-150 ease-in-out"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center min-w-0">
                         <div className="flex-shrink-0">
-                          {getActionIcon(transaction.action)}
+                          {getStatusIcon(withdrawal.status)}
                         </div>
                         <div className="ml-4">
                           <p className="text-sm font-medium text-gray-900">
-                            {getActionText(transaction.action)}{' '}
+                            {withdrawal.transaction_type.charAt(0).toUpperCase() + withdrawal.transaction_type.slice(1)}{' '}
                             <span className="text-gray-500">
-                              {transaction.requestIds.length}{' '}
-                              {transaction.requestIds.length === 1
-                                ? 'request'
-                                : 'requests'}{' '}
-                            {transaction.action === 'approve' && (
-                              <>
+                              {withdrawal.status === 'successful' && (
                                 <span className="text-green-600 font-medium">
-                                  ({withdrawals
-                                  .filter(w => transaction.requestIds.includes(w.id))
-                                  .reduce((sum, w) => sum + w.amount, 0)
-                                  .toFixed(8)} SOL)
+                                  ({withdrawal.amount.toFixed(3)} SOL)
                                 </span>
-                                {transaction.signature && (
-                                  <a
-                                    href={`https://explorer.solana.com/tx/${transaction.signature}?cluster=devnet`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="ml-2 text-indigo-600 hover:text-indigo-900"
-                                  >
-                                    View on Explorer
-                                  </a>
-                                )}
-                              </>
-                            )}
+                              )}
+                              {withdrawal.signature && (
+                                <a
+                                  href={`https://explorer.solana.com/tx/${withdrawal.signature}?cluster=devnet`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-2 text-indigo-600 hover:text-indigo-900"
+                                >
+                                  View on Explorer
+                                </a>
+                              )}
                             </span>
                           </p>
                           <p className="text-sm text-gray-500">
-                            by {transaction.performedBy}
+                            to {withdrawal.wallet_address}
                           </p>
                         </div>
                       </div>
                       <div className="ml-4 flex-shrink-0">
                         <p className="text-sm text-gray-500">
-                          {transaction.timestamp.toLocaleString()}
+                          {new Date(withdrawal.created_at).toLocaleString()}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <p className="text-gray-500">
-                          Request IDs:{' '}
-                          <span className="font-mono">
-                            {transaction.requestIds.join(', ')}
-                          </span>
-                        </p>
-                        <Link
-                          to={`/history/${transaction.id}`}
-                          className="inline-flex items-center text-indigo-600 hover:text-indigo-900"
-                        >
-                          View Details
-                          <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
+                    {withdrawal.notes && (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">{withdrawal.notes}</p>
                       </div>
-                    </div>
+                    )}
+                    {withdrawal.error_message && (
+                      <div className="mt-2">
+                        <p className="text-sm text-red-500">{withdrawal.error_message}</p>
+                      </div>
+                    )}
                   </li>
                 ))
               )}

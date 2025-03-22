@@ -374,8 +374,8 @@ function App() {
               path="/history"
               element={
                 <TransactionHistory
-                  withdrawals={withdrawalRequests}
-                  transactions={transactions}
+                  // withdrawals={withdrawalRequests}
+                  // transactions={transactions}
                 />
               }
             />
