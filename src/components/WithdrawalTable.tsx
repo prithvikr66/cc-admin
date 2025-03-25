@@ -22,6 +22,7 @@ interface Metrics {
   houseBalance: number;
   totalWithdrawn: number;
   pendingWithdrawals: number;
+  pendingWithdrawalsCount: any;
 }
 
 const WithdrawalTable: React.FC<WithdrawalTableProps> = ({

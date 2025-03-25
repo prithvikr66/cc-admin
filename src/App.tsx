@@ -16,9 +16,9 @@ import { usePhantomWallet } from './contexts/PhantomWallet';
 import { transferSOLBulk } from './services/solana';
 
 function App() {
-  const [timeRange, setTimeRange] = React.useState<TimeRange>('24h');
+  const [timeRange, setTimeRange] = React.useState<TimeRange>('ytd');
   const [selectedAction, setSelectedAction] = React.useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = React.useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = React.useState<string | null>("pending");
   const [searchQuery, setSearchQuery] = React.useState('');
   const [currentPage, setCurrentPage] = React.useState(1);
   const [itemsPerPage, setItemsPerPage] = React.useState(10);
@@ -33,22 +33,15 @@ function App() {
   // Initialize Solana connection
   const connection = new Connection('https://api.devnet.solana.com');
 
-  const actionOptions = [
-    { value: 'win', label: 'Win' },
-    { value: 'lose', label: 'Lose' },
-    { value: 'withdraw', label: 'Withdraw' },
-  ];
-
   const statusOptions = [
-    { value: 'Pending', label: 'Pending' },
-    { value: 'Approved', label: 'Approved' },
-    { value: 'Rejected', label: 'Rejected' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'failed', label: 'Rejected' },
   ];
 
   const handleBulkAction = async (action: BulkAction, ids: string[]) => {
     if (action === 'approve' && publicKey) {
       const selectedRequests = withdrawalRequests.filter(w => ids.includes(w.id));
-      
+
       // Check if any selected request has 'lose' action
       const hasLoseAction = selectedRequests.some(request => request.action === 'lose');
       if (hasLoseAction) {
@@ -60,10 +53,7 @@ function App() {
       const hasInvalidStatus = selectedRequests.some(
         request => request.status !== 'Pending' && request.status !== 'Rejected'
       );
-      if (hasInvalidStatus) {
-        alert('Can only approve requests with "Pending" or "Rejected" status. Please deselect other items.');
-        return;
-      }
+      
 
       setIsProcessing(true);
       try {
@@ -133,7 +123,7 @@ function App() {
       setIsProcessing(true);
       try {
         const selectedRequests = withdrawalRequests.filter(w => ids.includes(w.id));
-        
+
         // Prepare rejected transactions data
         const rejectedTransactions = selectedRequests.map(request => ({
           id: request.id,
@@ -203,33 +193,33 @@ function App() {
   const filterWithdrawals = (
     requests: WithdrawalRequest[],
     range: TimeRange,
-    action: string | null, 
+    action: string | null,
     status: string | null,
     search: string
   ) => {
     const now = new Date();
     const msPerDay = 24 * 60 * 60 * 1000;
-    
+
     return requests.filter((request) => {
       // Time filter
       const timeDiff = now.getTime() - request.timestamp.getTime();
       const daysDiff = timeDiff / msPerDay;
-      
+
       const matchesTime = (() => {
         switch (range) {
-        case '24h':
-          return daysDiff <= 1;
-        case '3d':
-          return daysDiff <= 3;
-        case '7d':
-          return daysDiff <= 7;
-        case '30d':
-          return daysDiff <= 30;
-        case 'ytd':
-          return request.timestamp.getFullYear() === now.getFullYear();
-        default:
-          return true;
-      }
+          case '24h':
+            return daysDiff <= 1;
+          case '3d':
+            return daysDiff <= 3;
+          case '7d':
+            return daysDiff <= 7;
+          case '30d':
+            return daysDiff <= 30;
+          case 'ytd':
+            return request.timestamp.getFullYear() === now.getFullYear();
+          default:
+            return true;
+        }
       })();
 
       // Action filter
@@ -239,7 +229,7 @@ function App() {
       const matchesStatus = !status || request.status === status;
 
       // Search filter
-      const matchesSearch = !search || 
+      const matchesSearch = !search ||
         request.walletAddress.toLowerCase().includes(search.toLowerCase());
 
       return matchesTime && matchesAction && matchesStatus && matchesSearch;
@@ -253,7 +243,7 @@ function App() {
         setIsLoading(true);
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URI}/api/admin/pending-withdrawals`);
         const data = await response.json();
-        
+
         if (!data.success) {
           throw new Error(data.error || 'Failed to fetch withdrawals');
         }
@@ -265,7 +255,7 @@ function App() {
           amount: w.amount,
           timestamp: new Date(w.created_at),
           action: w.transaction_type,
-          status: w.status.charAt(0).toUpperCase() + w.status.slice(1), // Capitalize status
+          status: w.status
         }));
 
         setWithdrawalRequests(transformedWithdrawals);
@@ -322,8 +312,8 @@ function App() {
                     <div className="mb-6">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center">
-                        <Wallet className="h-8 w-8 text-indigo-600 mr-3" />
-                        <h1 className="text-2xl font-semibold text-gray-900">Withdrawal Requests</h1>
+                          <Wallet className="h-8 w-8 text-indigo-600 mr-3" />
+                          <h1 className="text-2xl font-semibold text-gray-900">Withdrawal Requests</h1>
                         </div>
                         <ConnectWallet />
                       </div>
@@ -341,19 +331,28 @@ function App() {
                           />
                         </div>
                         <div className="flex items-center space-x-4">
-                        <Link
-                          to="/history"
-                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        >
-                          <History className="h-4 w-4 mr-2" />
-                          View History
-                        </Link>
-                        <div className="h-6 w-px bg-gray-300"></div>
-                       
-                        <TimeFilter selectedRange={timeRange} onRangeChange={setTimeRange} />
-                      
+                          <Link
+                            to="/history"
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          >
+                            <History className="h-4 w-4 mr-2" />
+                            View History
+                          </Link>
+                          <div className="h-6 w-px bg-gray-300"></div>
+
+
+                          <TimeFilter selectedRange={timeRange} onRangeChange={setTimeRange} />
+                          <FilterDropdown
+                            label="Status"
+                            options={statusOptions}
+                            value={selectedStatus}
+                            onChange={setSelectedStatus}
+                            icon={<AlertCircle className="h-5 w-5" />}
+                          />
+                          {/* <TimeFilter selectedRange={timeRange} onRangeChange={setTimeRange} /> */}
+
+                        </div>
                       </div>
-                    </div>
                     </div>
                     <div className="bg-white shadow rounded-lg">
                       <WithdrawalTable
@@ -374,8 +373,8 @@ function App() {
               path="/history"
               element={
                 <TransactionHistory
-                  // withdrawals={withdrawalRequests}
-                  // transactions={transactions}
+                withdrawals={withdrawalRequests}
+                transactions={transactions}
                 />
               }
             />
