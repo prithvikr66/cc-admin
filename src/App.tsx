@@ -7,7 +7,7 @@ import TransactionDetails from './pages/TransactionDetails';
 import WithdrawalTable from './components/WithdrawalTable';
 import TimeFilter, { TimeRange } from './components/TimeFilter';
 import Notification from './components/Notification';
-import { Wallet, Activity, AlertCircle, History, Search } from 'lucide-react';
+import { Wallet, AlertCircle, History, Search } from 'lucide-react';
 import FilterDropdown from './components/FilterDropdown';
 import TransactionHistory from './pages/TransactionHistory';
 import WalletGuard from './components/WalletGuard';
@@ -17,7 +17,7 @@ import { transferSOLBulk } from './services/solana';
 
 function App() {
   const [timeRange, setTimeRange] = React.useState<TimeRange>('ytd');
-  const [selectedAction, setSelectedAction] = React.useState<string | null>(null);
+  const [selectedAction] = React.useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = React.useState<string | null>("pending");
   const [searchQuery, setSearchQuery] = React.useState('');
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -57,18 +57,18 @@ function App() {
 
       setIsProcessing(true);
       try {
-        // Process all transfers in parallel
         const transfers = selectedRequests.map(request => ({
           toWallet: request.walletAddress,
           amount: request.amount
         }));
 
         const signatures = await transferSOLBulk(connection, publicKey, transfers);
+        const signature = signatures[0];
 
-        // Send completed transaction info to backend
-        const completedTransactions = selectedRequests.map((request, index) => ({
+        // Update to use the same signature for all transactions
+        const completedTransactions = selectedRequests.map(request => ({
           id: request.id,
-          signature: signatures[index],
+          signature: signature,
           status: 'successful',
           updated_at: new Date().toISOString()
         }));
@@ -95,7 +95,7 @@ function App() {
           requestIds: ids,
           timestamp: new Date(),
           performedBy: publicKey.toString(),
-          signature: signatures[0],
+          signature: signature,
         };
         setTransactions(prev => [newTransaction, ...prev]);
 

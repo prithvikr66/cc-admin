@@ -4,51 +4,76 @@ import { Transaction } from '../types/transaction';
 import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { WithdrawalRequest } from '../types/withdrawal';
+import axios from 'axios';
 
-
-interface TransactionHistoryProps {
-  transactions: Transaction[];
-  withdrawals: WithdrawalRequest[];
+interface HistoryTransaction {
+  id: string;
+  wallet_address: string;
+  amount: number;
+  transaction_type: string;
+  status: string;
+  signature: string | null;
+  created_at: string;
+  updated_at: string;
+  notes: string;
+  error_message: string | null;
 }
 
-const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, withdrawals }) => {
+interface TransactionGroup {
+  signed_at: string;
+  status: string;
+  transactions: HistoryTransaction[];
+}
+
+interface HistoryResponse {
+  groups: TransactionGroup[];
+}
+
+const TransactionHistory: React.FC = () => {
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [historyData, setHistoryData] = React.useState<TransactionGroup[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const getActionIcon = (action: Transaction['action']) => {
-    switch (action) {
-      case 'approve':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case 'reject':
-        return <XCircle className="h-5 w-5 text-red-500" />;
-      case 'review':
-        return <Eye className="h-5 w-5 text-blue-500" />;
-    }
-  };
+  React.useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await axios.get<HistoryResponse>(`${import.meta.env.VITE_BACKEND_URI}/api/admin/history`);
+        setHistoryData(response.data.groups);
+        setLoading(false);
+      } catch (err) {
+        setError('Failed to fetch transaction history');
+        setLoading(false);
+      }
+    };
 
-  const getActionText = (action: Transaction['action']) => {
-    switch (action) {
-      case 'approve':
-        return 'Approved';
-      case 'reject':
-        return 'Rejected';
-      case 'review':
-        return 'Reviewed';
-    }
-  };
+    fetchHistory();
+  }, []);
 
   // Filter transactions based on wallet address
-  const filteredTransactions = transactions.filter(transaction => {
+  const filteredGroups = historyData.filter(group => {
     if (!searchQuery) return true;
     
-    // Get all wallet addresses involved in this transaction
-    const involvedWallets = withdrawals
-      .filter(w => transaction.requestIds.includes(w.id))
-      .map(w => w.walletAddress.toLowerCase());
-    
-    return involvedWallets.some(wallet => 
-      wallet.includes(searchQuery.toLowerCase())
+    return group.transactions.some(tx => 
+      tx.wallet_address.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-red-600">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -68,100 +93,56 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, w
             </Link>
           </div>
 
-          <div className="mb-6">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search by wallet address..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-          </div>
+         
 
           <div className="bg-white shadow overflow-hidden sm:rounded-lg">
             <ul role="list" className="divide-y divide-gray-200">
-              {filteredTransactions.length === 0 ? (
+              {filteredGroups.length === 0 ? (
                 <li className="p-8 text-center text-gray-500">
-                  {transactions.length === 0 
-                    ? "No transactions recorded yet"
-                    : "No transactions found matching the search criteria"}
+                  No transactions found matching the search criteria
                 </li>
               ) : (
-                filteredTransactions.map((transaction) => (
-                  <li
-                    key={transaction.id}
-                    className="p-4 hover:bg-gray-50 transition-colors duration-150 ease-in-out cursor-pointer"
-                    onClick={() => {}}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center min-w-0">
-                        <div className="flex-shrink-0">
-                          {getActionIcon(transaction.action)}
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-900">
-                            {getActionText(transaction.action)}{' '}
-                            <span className="text-gray-500">
-                              {transaction.requestIds.length}{' '}
-                              {transaction.requestIds.length === 1
-                                ? 'request'
-                                : 'requests'}{' '}
-                            {transaction.action === 'approve' && (
-                              <>
-                                <span className="text-green-600 font-medium">
-                                  ({withdrawals
-                                  .filter(w => transaction.requestIds.includes(w.id))
-                                  .reduce((sum, w) => sum + w.amount, 0)
-                                  .toFixed(8)} SOL)
-                                </span>
-                                {transaction.signature && (
-                                  <a
-                                    href={`https://explorer.solana.com/tx/${transaction.signature}?cluster=devnet`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="ml-2 text-indigo-600 hover:text-indigo-900"
-                                  >
-                                    View on Explorer
-                                  </a>
-                                )}
-                              </>
-                            )}
-                            </span>
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            by {transaction.performedBy}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="ml-4 flex-shrink-0">
-                        <p className="text-sm text-gray-500">
-                          {transaction.timestamp.toLocaleString()}
-                        </p>
-                      </div>
+                filteredGroups.map((group) => (
+                  <li key={group.signed_at} className="p-6">
+                    <div className="mb-4">
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {group.status === 'approved' ? 'Approved on' : 'Rejected on'} {new Date(group.signed_at).toLocaleString()}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Signed by Admin {/* Hardcoded for now */}
+                      </p>
                     </div>
-                    <div className="mt-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <p className="text-gray-500">
-                          Request IDs:{' '}
-                          <span className="font-mono">
-                            {transaction.requestIds.join(', ')}
-                          </span>
-                        </p>
-                        <Link
-                          to={`/history/${transaction.id}`}
-                          className="inline-flex items-center text-indigo-600 hover:text-indigo-900"
+                    <div className="space-y-4">
+                      {group.transactions.map((tx) => (
+                        <div
+                          key={tx.id}
+                          className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors duration-150"
                         >
-                          View Details
-                          <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
-                      </div>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {tx.amount} SOL to {tx.wallet_address}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                Status: {tx.status}
+                              </p>
+                              {tx.notes && (
+                                <p className="text-sm text-gray-500">{tx.notes}</p>
+                              )}
+                            </div>
+                            {tx.signature && (
+                              <a
+                                href={`https://explorer.solana.com/tx/${tx.signature}?cluster=devnet`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-indigo-600 hover:text-indigo-900"
+                              >
+                                View on Explorer
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </li>
                 ))
