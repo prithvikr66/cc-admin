@@ -1,12 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { History, CheckCircle, XCircle, Eye, ArrowLeft } from 'lucide-react';
-import { Transaction } from '../types/transaction';
 import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { WithdrawalRequest } from '../types/withdrawal';
-import axios from 'axios';
 
-interface HistoryTransaction {
+// New interfaces to match backend data structure
+interface Transaction {
   id: string;
   wallet_address: string;
   amount: number;
@@ -15,14 +13,15 @@ interface HistoryTransaction {
   signature: string | null;
   created_at: string;
   updated_at: string;
+  fee: number | null;
   notes: string;
   error_message: string | null;
 }
 
 interface TransactionGroup {
-  signed_at: string;
   status: string;
-  transactions: HistoryTransaction[];
+  signed_at: string;
+  transactions: Transaction[];
 }
 
 interface HistoryResponse {
@@ -30,30 +29,45 @@ interface HistoryResponse {
 }
 
 const TransactionHistory: React.FC = () => {
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [historyData, setHistoryData] = React.useState<TransactionGroup[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [historyData, setHistoryData] = useState<HistoryResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const response = await axios.get<HistoryResponse>(`${import.meta.env.VITE_BACKEND_URI}/api/admin/history`);
-        setHistoryData(response.data.groups);
-        setLoading(false);
-      } catch (err) {
-        setError('Failed to fetch transaction history');
-        setLoading(false);
-      }
-    };
-
-    fetchHistory();
+  useEffect(() => {
+    fetchHistoryData();
   }, []);
 
-  // Filter transactions based on wallet address
-  const filteredGroups = historyData.filter(group => {
+  const fetchHistoryData = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URI}/api/admin/history`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch history data');
+      }
+      const data: HistoryResponse = await response.json();
+      setHistoryData(data);
+      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      setLoading(false);
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'successful':
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'failed':
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      default:
+        return <Eye className="h-5 w-5 text-blue-500" />;
+    }
+  };
+
+  // Filter groups based on wallet address
+  const filteredGroups = historyData?.groups.filter(group => {
     if (!searchQuery) return true;
-    
     return group.transactions.some(tx => 
       tx.wallet_address.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -70,7 +84,7 @@ const TransactionHistory: React.FC = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-red-600">{error}</div>
+        <div className="text-red-600">Error: {error}</div>
       </div>
     );
   }
@@ -93,58 +107,65 @@ const TransactionHistory: React.FC = () => {
             </Link>
           </div>
 
-         
+          <div className="mb-6">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search by wallet address..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              />
+            </div>
+          </div>
 
           <div className="bg-white shadow overflow-hidden sm:rounded-lg">
             <ul role="list" className="divide-y divide-gray-200">
-              {filteredGroups.length === 0 ? (
+              {!filteredGroups?.length ? (
                 <li className="p-8 text-center text-gray-500">
                   No transactions found matching the search criteria
                 </li>
               ) : (
-                filteredGroups.map((group) => (
-                  <li key={group.signed_at} className="p-6">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {group.status === 'approved' ? 'Approved on' : 'Rejected on'} {new Date(group.signed_at).toLocaleString()}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Signed by Admin {/* Hardcoded for now */}
-                      </p>
-                    </div>
-                    <div className="space-y-4">
-                      {group.transactions.map((tx) => (
-                        <div
-                          key={tx.id}
-                          className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors duration-150"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {tx.amount} SOL to {tx.wallet_address}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                Status: {tx.status}
-                              </p>
-                              {tx.notes && (
-                                <p className="text-sm text-gray-500">{tx.notes}</p>
-                              )}
-                            </div>
-                            {tx.signature && (
-                              <a
-                                href={`https://explorer.solana.com/tx/${tx.signature}?cluster=devnet`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-indigo-600 hover:text-indigo-900"
-                              >
-                                View on Explorer
-                              </a>
-                            )}
-                          </div>
+                filteredGroups.map((group, index) => (
+                  <Link
+                    key={index}
+                    to={`/history/${group.transactions[0].id}`}
+                    state={{ group }}
+                    className="block hover:bg-gray-50"
+                  >
+                    <li className="p-4 flex items-center justify-between">
+                      <div className="flex items-center min-w-0">
+                        <div className="flex-shrink-0">
+                          {getStatusIcon(group.status)}
                         </div>
-                      ))}
-                    </div>
-                  </li>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-900">
+                            {group.status.charAt(0).toUpperCase() + group.status.slice(1)}{' '}
+                            <span className="text-gray-500">
+                              {group.transactions.length}{' '}
+                              {group.transactions.length === 1 ? 'transaction' : 'transactions'}{' '}
+                            </span>
+                            {group.status === 'approved' && (
+                              <span className="text-green-600 font-medium">
+                                ({group.transactions.reduce((sum, tx) => sum + tx.amount, 0).toFixed(3)} SOL)
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(group.signed_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </li>
+                  </Link>
                 ))
               )}
             </ul>

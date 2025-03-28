@@ -373,6 +373,7 @@ function App() {
               path="/history"
               element={
                 <TransactionHistory
+                // @ts-ignores
                 withdrawals={withdrawalRequests}
                 transactions={transactions}
                 />
@@ -382,6 +383,7 @@ function App() {
               path="/history/:id"
               element={
                 <TransactionDetails
+                // @ts-ignore
                   withdrawals={withdrawalRequests}
                   transactions={transactions}
                 />
