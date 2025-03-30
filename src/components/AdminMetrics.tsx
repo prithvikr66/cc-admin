@@ -139,7 +139,7 @@ const AdminMetrics: React.FC<AdminMetricsProps> = ({ metrics, onUpdateHouseBalan
               </>
             ) : (
               <>
-                <span className="text-xl font-semibold">{metrics.houseBalance} SOL</span>
+                <span className="text-xl font-semibold">{metrics.houseBalance > 0 ? metrics.houseBalance.toFixed(3) : 0} SOL</span>
                 <button
                   onClick={() => setIsEditing(true)}
                   className="ml-2 text-gray-600 hover:text-gray-800"

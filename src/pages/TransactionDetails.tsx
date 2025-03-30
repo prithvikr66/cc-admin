@@ -48,6 +48,9 @@ const TransactionDetails: React.FC = () => {
     );
   }
 
+  // Get the signature from the first successful transaction in the group
+  const groupSignature = group.transactions.find(tx => tx.status === 'successful')?.signature;
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -68,12 +71,29 @@ const TransactionDetails: React.FC = () => {
 
           <div className="bg-white shadow overflow-hidden sm:rounded-lg">
             <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
-                {group.status.charAt(0).toUpperCase() + group.status.slice(1)} Group
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Signed at: {new Date(group.signed_at).toLocaleString()}
-              </p>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                    {group.status.charAt(0).toUpperCase() + group.status.slice(1)} Group
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Signed at: {new Date(group.signed_at).toLocaleString()}
+                  </p>
+                </div>
+                {group.status === 'approved' && groupSignature && (
+                  <a
+                    href={`https://solscan.io/tx/${groupSignature}?cluster=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:text-indigo-900 text-sm flex items-center"
+                  >
+                    View on Solscan
+                    <svg className="h-4 w-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                )}
+              </div>
             </div>
 
             <div className="border-t border-gray-200">
@@ -91,9 +111,6 @@ const TransactionDetails: React.FC = () => {
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Created At
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -117,18 +134,6 @@ const TransactionDetails: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(tx.created_at).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {tx.status === 'successful' && tx.signature && (
-                          <a
-                            href={`https://solscan.io/tx/${tx.signature}?cluster=devnet`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            View on Solscan
-                          </a>
-                        )}
                       </td>
                     </tr>
                   ))}
